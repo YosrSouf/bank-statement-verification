@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p class="eyebrow">NEW REVIEW</p>
+
+<h1>Upload a bank statement</h1>
+
+<p>
+    Generate findings to support your review
+    of the admissions requirements.
+</p>
+
+<section class="card">
+    {% if error %}
+        <p class="error" role="alert">
+            {{ error }}
+        </p>
+    {% endif %}
+
+    <form
+        id="upload-form"
+        method="post"
+        enctype="multipart/form-data"
+    >
+        <input
+            type="hidden"
+            name="csrf"
+            value="{{ session.csrf }}"
+        >
+
+        <div id="drop-zone">
+            <h2>Drop your PDF here</h2>
+
+            <p>
+                Or select a file below.
+                PDF only · up to 20 MB · 50 pages
+            </p>
+
+            <label for="statement">
+                Bank statement PDF
+            </label>
+
+            <input
+                id="statement"
+                name="statement"
+                type="file"
+                accept=".pdf,application/pdf"
+                required
+            >
+
+            <p id="file-name" aria-live="polite">
+                No file selected
+            </p>
+        </div>
+
+        <label for="required_amount">
+            Required funding amount (USD)
+        </label>
+
+        <input
+            id="required_amount"
+            name="required_amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            max="10000000"
+            placeholder="e.g. 32000.00"
+            required
+        >
+
+        <p class="muted">
+            Extracted statement text is sent to the OpenAI API
+            for analysis. The uploaded PDF is deleted from
+            this app after processing.
+        </p>
+
+        <button id="generate">
+            Generate report
+        </button>
+
+        <p id="processing" role="status" hidden>
+            Processing your statement…
+            This may take a few minutes. Keep this page open.
+        </p>
+    </form>
+</section>
+{% endblock %}

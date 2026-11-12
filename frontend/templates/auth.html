@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card narrow">
+    <p class="eyebrow">ADVISOR ACCESS</p>
+
+    <h1>
+        {{ "Request an account" if signup else "Welcome back" }}
+    </h1>
+
+    <p>
+        {% if signup %}
+            New accounts require administrator approval.
+        {% else %}
+            Log in to review a bank statement.
+        {% endif %}
+    </p>
+
+    <form method="post">
+        <input
+            type="hidden"
+            name="csrf"
+            value="{{ session.csrf }}"
+        >
+
+        {% if signup %}
+            <label for="name">Full name</label>
+
+            <input
+                id="name"
+                name="name"
+                autocomplete="name"
+                maxlength="100"
+                required
+            >
+        {% endif %}
+
+        <label for="email">Email</label>
+
+        <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            maxlength="254"
+            required
+        >
+
+        <label for="password">Password</label>
+
+        <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="{{ 'new-password' if signup else 'current-password' }}"
+            maxlength="128"
+            {% if signup %}minlength="12"{% endif %}
+            required
+        >
+
+        {% if signup %}
+            <small>Use at least 12 characters.</small>
+        {% endif %}
+
+        <button class="wide">
+            {{ "Submit request" if signup else "Log in" }}
+        </button>
+    </form>
+
+    <p>
+        {% if signup %}
+            Already registered?
+            <a href="{{ url_for('login') }}">Log in</a>
+        {% else %}
+            Need access?
+            <a href="{{ url_for('signup') }}">Sign up</a>
+        {% endif %}
+    </p>
+</section>
+{% endblock %}

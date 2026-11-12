@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card hero">
+    <p class="eyebrow">INTERNATIONAL ADMISSIONS</p>
+
+    {% if g.user %}
+        <h1>Welcome, {{ g.user.name }}.</h1>
+    {% else %}
+        <h1>A clearer view of every statement.</h1>
+    {% endif %}
+
+    <p class="intro">
+        Upload a bank statement and review AI-generated findings
+        against admissions requirements.
+    </p>
+
+    <div class="actions">
+        {% if g.user %}
+            <a
+                class="button"
+                href="{{ url_for('review') }}"
+            >
+                Review a statement →
+            </a>
+        {% else %}
+            <a
+                class="button"
+                href="{{ url_for('login') }}"
+            >
+                Log in
+            </a>
+
+            <a
+                class="button secondary"
+                href="{{ url_for('signup') }}"
+            >
+                Sign up
+            </a>
+        {% endif %}
+    </div>
+</section>
+
+<div class="steps">
+    <section class="card">
+        <span class="step">01</span>
+        <h2>Upload</h2>
+
+        <p>
+            Select a PDF and enter the required funding amount.
+        </p>
+    </section>
+
+    <section class="card">
+        <span class="step">02</span>
+        <h2>Review</h2>
+
+        <p>
+            Check the evidence, explanation, and status
+            for each requirement.
+        </p>
+    </section>
+
+    <section class="card">
+        <span class="step">03</span>
+        <h2>Decide</h2>
+
+        <p>
+            Resolve unclear findings and make the final decision.
+        </p>
+    </section>
+</div>
+{% endblock %}

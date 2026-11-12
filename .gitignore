@@ -1,0 +1,36 @@
+# Python
+venv/
+venv312/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment and secrets
+.env
+*.key
+*.sqlite
+*.db
+instance/
+
+# Large files and test data
+data/*
+ocr_data/
+ocr_test_data/*
+frontend/static/upload/*
+
+# Sensitive extracted data
+AI_data/
+dates.json
+
+# Dependencies
+poppler-26.07.0/
+
+# Personal notes
+weekly_progress_and_notes/
+
+# Word documents
+*.docx
+
+# Temporary files
+.DS_Store
+scripts/*.py

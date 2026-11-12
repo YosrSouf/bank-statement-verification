@@ -1,0 +1,73 @@
+const form = document.querySelector("#upload-form");
+
+if (form) {
+    const dropZone = document.querySelector("#drop-zone");
+    const fileInput = document.querySelector("#statement");
+    const fileName = document.querySelector("#file-name");
+    const generateButton = document.querySelector("#generate");
+    const processingMessage = document.querySelector("#processing");
+
+    function showFileName() {
+        const file = fileInput.files[0];
+
+        fileName.textContent = file
+            ? file.name
+            : "No file selected";
+    }
+
+    fileInput.addEventListener("change", showFileName);
+
+    dropZone.addEventListener("dragover", function (event) {
+        event.preventDefault();
+        dropZone.classList.add("drag");
+    });
+
+    dropZone.addEventListener("dragleave", function () {
+        dropZone.classList.remove("drag");
+    });
+
+    dropZone.addEventListener("drop", function (event) {
+        event.preventDefault();
+        dropZone.classList.remove("drag");
+
+        const files = event.dataTransfer.files;
+
+        if (files.length !== 1) {
+            fileName.textContent = "Select one PDF at a time.";
+            return;
+        }
+
+        fileInput.files = files;
+        showFileName();
+    });
+
+    form.addEventListener("submit", function (event) {
+        const file = fileInput.files[0];
+
+        if (
+            !file ||
+            !file.name.toLowerCase().endsWith(".pdf") ||
+            file.size > 20 * 1024 * 1024
+        ) {
+            event.preventDefault();
+
+            fileName.textContent =
+                "Choose a PDF smaller than 20 MB.";
+
+            return;
+        }
+
+        generateButton.disabled = true;
+        processingMessage.hidden = false;
+
+        form.setAttribute("aria-busy", "true");
+    });
+
+    // Restore the form if the advisor returns using the Back button.
+    window.addEventListener("pageshow", function () {
+        generateButton.disabled = false;
+        processingMessage.hidden = true;
+
+        form.removeAttribute("aria-busy");
+    });
+}

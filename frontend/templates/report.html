@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<p class="eyebrow">AI-GENERATED FINDINGS</p>
+
+<h1>Statement review</h1>
+
+<section class="card">
+    <span class="badge {{ report.overall }}">
+        {{ report.overall | replace("_", " ") }}
+    </span>
+
+    <h2>Review summary</h2>
+
+    <p>
+        {{ report.results
+            | selectattr("status", "equalto", "MET")
+            | list
+            | length }} met
+        ·
+        {{ report.results
+            | selectattr("status", "equalto", "NOT_MET")
+            | list
+            | length }} not met
+        ·
+        {{ report.results
+            | selectattr("status", "equalto", "UNCLEAR")
+            | list
+            | length }} unclear
+    </p>
+
+    <p>
+        This is an advisory report. Confirm the evidence
+        and resolve unclear findings before making
+        your final decision.
+    </p>
+</section>
+
+{% for finding in report.results %}
+    <article class="card">
+        <div class="finding-heading">
+            <h2>
+                {{ finding.id }} · {{ finding.rule }}
+            </h2>
+
+            <span class="badge {{ finding.status }}">
+                {{ finding.status | replace("_", " ") }}
+            </span>
+        </div>
+
+        <h3>Evidence</h3>
+
+        <blockquote>
+            {{ finding.evidence or "No clear evidence was extracted." }}
+        </blockquote>
+
+        <h3>Explanation</h3>
+
+        <p>{{ finding.reasoning }}</p>
+
+        {% if finding.note %}
+            <p class="notice">
+                {{ finding.note }}
+            </p>
+        {% endif %}
+    </article>
+{% endfor %}
+
+<section class="card">
+    <h2>Metadata review</h2>
+
+    <p>{{ report.metadata_review.summary }}</p>
+
+    {% if report.metadata_review.flags %}
+        <ul>
+            {% for flag in report.metadata_review.flags %}
+                <li>{{ flag }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <p>
+        {% if report.metadata_review.needs_human_review %}
+            Further investigation is needed.
+        {% else %}
+            No additional metadata investigation was flagged.
+        {% endif %}
+    </p>
+
+    <p>
+        Metadata alone cannot establish authenticity.
+    </p>
+</section>
+
+<a class="button" href="{{ url_for('review') }}">
+    Review another statement
+</a>
+{% endblock %}

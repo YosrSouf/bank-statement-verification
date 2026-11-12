@@ -1,0 +1,299 @@
+:root {
+    --purple: #59488e;
+    --blue: #568dbb;
+    --background: #e3e7f2;
+    --text: #29273d;
+    --muted: #626579;
+    --border: #d8deeb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--background);
+    color: var(--text);
+    font: 16px/1.6 Arial, sans-serif;
+}
+
+header {
+    max-width: 1120px;
+    margin: auto;
+    padding: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+a {
+    color: var(--purple);
+}
+
+.brand {
+    font-size: 21px;
+    font-weight: bold;
+    text-decoration: none;
+}
+
+nav,
+.actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+nav {
+    font-size: 14px;
+}
+
+main {
+    max-width: 1040px;
+    margin: 24px auto;
+    padding: 0 24px;
+}
+
+.card {
+    background: white;
+    border-radius: 22px;
+    padding: 30px;
+    margin-bottom: 22px;
+}
+
+.hero {
+    padding: 54px;
+}
+
+h1,
+h2,
+h3 {
+    line-height: 1.3;
+}
+
+h1 {
+    font-size: 32px;
+    margin: 8px 0 18px;
+}
+
+.hero h1 {
+    max-width: 680px;
+    font-size: 42px;
+}
+
+h2 {
+    font-size: 20px;
+}
+
+h3 {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 6px;
+}
+
+p {
+    margin: 10px 0 20px;
+}
+
+.intro {
+    max-width: 650px;
+    font-size: 18px;
+    color: var(--muted);
+}
+
+.eyebrow {
+    color: var(--purple);
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1.5px;
+}
+
+.button,
+button {
+    display: inline-block;
+    border: 0;
+    border-radius: 24px;
+    padding: 12px 24px;
+    background: linear-gradient(
+        100deg,
+        var(--purple),
+        var(--blue)
+    );
+    color: white;
+    text-decoration: none;
+    font: bold 14px/1.4 Arial, sans-serif;
+    cursor: pointer;
+}
+
+.secondary {
+    background: #f0edf7;
+    color: var(--purple);
+}
+
+button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline: 3px solid #3d74b9;
+    outline-offset: 4px;
+}
+
+.steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.step {
+    color: var(--purple);
+    font-size: 26px;
+    font-weight: bold;
+}
+
+.narrow {
+    max-width: 490px;
+    margin: 35px auto;
+}
+
+.wide {
+    width: 100%;
+    margin-top: 24px;
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin: 18px 0 7px;
+}
+
+input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font: inherit;
+    background: white;
+}
+
+input[type="file"] {
+    max-width: 470px;
+}
+
+small,
+.muted {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.notice,
+.error {
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #f1eef9;
+}
+
+.error {
+    background: #fcebed;
+    color: #942c40;
+}
+
+.request,
+.finding-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+}
+
+.finding-heading h2 {
+    margin: 0;
+}
+
+.badge {
+    display: inline-block;
+    border-radius: 20px;
+    padding: 6px 13px;
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    background: #fff1ce;
+    color: #785916;
+}
+
+.MET,
+.PASS {
+    background: #e3f3ea;
+    color: #216444;
+}
+
+.NOT_MET,
+.FAIL {
+    background: #fbe7eb;
+    color: #96324a;
+}
+
+blockquote {
+    margin: 0;
+    padding: 14px 18px;
+    background: #f5f6fa;
+    border-left: 3px solid #a59bc7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+#drop-zone {
+    border: 2px dashed #b7afd2;
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    background: #faf9fd;
+}
+
+#drop-zone.drag {
+    border-color: var(--purple);
+    background: #efebf8;
+}
+
+#required_amount {
+    max-width: 320px;
+}
+
+footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    padding: 30px 20px;
+}
+
+@media (max-width: 700px) {
+    header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .hero,
+    .card {
+        padding: 24px;
+    }
+
+    .hero h1 {
+        font-size: 32px;
+    }
+
+    .steps {
+        grid-template-columns: 1fr;
+        gap: 0;
+    }
+
+    .finding-heading,
+    .request {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}

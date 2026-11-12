@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>Bank Statement Review</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+
+    <script
+        defer
+        src="{{ url_for('static', filename='upload.js') }}"
+    ></script>
+</head>
+
+<body>
+    <header>
+        <a class="brand" href="{{ url_for('home') }}">
+            Statement Review
+        </a>
+
+        <nav aria-label="Main navigation">
+            {% if g.user %}
+                <span>{{ g.user.name }}</span>
+
+                <a href="{{ url_for('review') }}">
+                    Review a statement
+                </a>
+
+                {% if g.user.is_admin %}
+                    <a href="{{ url_for('admin') }}">
+                        Account requests
+                    </a>
+                {% endif %}
+
+                <form
+                    method="post"
+                    action="{{ url_for('logout') }}"
+                >
+                    <input
+                        type="hidden"
+                        name="csrf"
+                        value="{{ session.csrf }}"
+                    >
+
+                    <button class="secondary">
+                        Log out
+                    </button>
+                </form>
+
+            {% else %}
+                <a
+                    class="button"
+                    href="{{ url_for('login') }}"
+                >
+                    Log in
+                </a>
+
+                <a
+                    class="button"
+                    href="{{ url_for('signup') }}"
+                >
+                    Sign up
+                </a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main>
+        {% for message in get_flashed_messages() %}
+            <p class="notice" role="status">
+                {{ message }}
+            </p>
+        {% endfor %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        International admissions · AI-assisted review
+        · Advisors make the final decision
+    </footer>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="card narrow">
+    <h1>Unable to continue</h1>
+
+    <p role="alert">{{ message }}</p>
+
+    <a class="button" href="{{ url_for('home') }}">
+        Return home
+    </a>
+</section>
+{% endblock %}

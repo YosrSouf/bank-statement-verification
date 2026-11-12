@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Account requests</h1>
+
+<p>
+    Approve staff before they can access statement review.
+</p>
+
+{% for user in users %}
+    <section class="card request">
+        <div>
+            <h2>{{ user.name }}</h2>
+            <p>{{ user.email }}</p>
+        </div>
+
+        <div class="actions">
+            <form
+                method="post"
+                action="{{ url_for(
+                    'decide_account',
+                    user_id=user.id,
+                    action='approve'
+                ) }}"
+            >
+                <input
+                    type="hidden"
+                    name="csrf"
+                    value="{{ session.csrf }}"
+                >
+
+                <button>Approve</button>
+            </form>
+
+            <form
+                method="post"
+                action="{{ url_for(
+                    'decide_account',
+                    user_id=user.id,
+                    action='decline'
+                ) }}"
+            >
+                <input
+                    type="hidden"
+                    name="csrf"
+                    value="{{ session.csrf }}"
+                >
+
+                <button class="secondary">
+                    Decline
+                </button>
+            </form>
+        </div>
+    </section>
+
+{% else %}
+    <section class="card">
+        <h2>You're all caught up.</h2>
+        <p>No pending account requests.</p>
+    </section>
+{% endfor %}
+{% endblock %}
