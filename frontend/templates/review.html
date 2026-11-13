@@ -69,19 +69,43 @@
         >
 
         <p class="muted">
-            Extracted statement text is sent to the OpenAI API
-            for analysis. The uploaded PDF is deleted from
-            this app after processing.
+            Structured statement fields and PDF metadata are sent
+            to the OpenAI API for analysis. The uploaded PDF is
+            deleted from this app after processing.
         </p>
 
-        <button id="generate">
+        <button id="generate" type="submit">
             Generate report
         </button>
 
-        <p id="processing" role="status" hidden>
-            Processing your statement…
-            This may take a few minutes. Keep this page open.
-        </p>
+        <div
+            id="processing"
+            class="processing-panel"
+            role="status"
+            aria-live="polite"
+            hidden
+        >
+            <span
+                class="report-spinner"
+                aria-hidden="true"
+            ></span>
+
+            <div>
+                <strong>Generating your report…</strong>
+
+                <p>
+                    Reviewing the document and preparing findings.
+                    Keep this page open.
+                </p>
+            </div>
+        </div>
+
+        <p
+            id="loading-error"
+            class="error"
+            role="alert"
+            hidden
+        ></p>
     </form>
 </section>
 {% endblock %}

@@ -6,6 +6,9 @@ if (form) {
     const fileName = document.querySelector("#file-name");
     const generateButton = document.querySelector("#generate");
     const processingMessage = document.querySelector("#processing");
+    const loadingError = document.querySelector("#loading-error");
+
+    let submitting = false;
 
     function showFileName() {
         const file = fileInput.files[0];
@@ -41,7 +44,13 @@ if (form) {
         showFileName();
     });
 
-    form.addEventListener("submit", function (event) {
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+
+        if (submitting) {
+            return;
+        }
+
         const file = fileInput.files[0];
 
         if (
@@ -49,22 +58,66 @@ if (form) {
             !file.name.toLowerCase().endsWith(".pdf") ||
             file.size > 20 * 1024 * 1024
         ) {
-            event.preventDefault();
-
             fileName.textContent =
-                "Choose a PDF smaller than 20 MB.";
+                "Choose a PDF no larger than 20 MB.";
 
             return;
         }
 
+        const data = new FormData(form);
+
+        submitting = true;
+        loadingError.hidden = true;
         generateButton.disabled = true;
         processingMessage.hidden = false;
-
         form.setAttribute("aria-busy", "true");
+
+        try {
+            const response = await fetch(
+                form.action || window.location.href,
+                {
+                    method: "POST",
+                    body: data,
+                    credentials: "same-origin",
+                }
+            );
+
+            if (response.redirected) {
+                window.location.assign(response.url);
+                return;
+            }
+
+            if (
+                !response.headers
+                    .get("content-type")
+                    ?.includes("text/html")
+            ) {
+                throw new Error("Unexpected response");
+            }
+
+            // Display the generated report or Flask's HTML error page.
+            const html = await response.text();
+
+            document.open();
+            document.write(html);
+            document.close();
+        } catch (error) {
+            submitting = false;
+            generateButton.disabled = false;
+            processingMessage.hidden = true;
+            form.removeAttribute("aria-busy");
+
+            loadingError.textContent =
+                "Connection interrupted. Processing may still be running. " +
+                "Check your connection before trying again.";
+
+            loadingError.hidden = false;
+        }
     });
 
-    // Restore the form if the advisor returns using the Back button.
+    // Reset the form when returning with the browser's Back button.
     window.addEventListener("pageshow", function () {
+        submitting = false;
         generateButton.disabled = false;
         processingMessage.hidden = true;
 
