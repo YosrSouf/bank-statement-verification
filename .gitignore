@@ -16,7 +16,6 @@ instance/
 data/*
 ocr_data/
 ocr_test_data/*
-frontend/static/upload/*
 
 # Sensitive extracted data
 AI_data/
