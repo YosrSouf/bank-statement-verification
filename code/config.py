@@ -1,49 +1,39 @@
+"""Paths and external-program configuration shared by the scripts."""
+
 import os
-import pytesseract
 from pathlib import Path
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe" # point pytesseract to the tesseract exe
+import pytesseract
 
+# Find folders relative to this file, so paths still work if you move the project.
+SCRIPT_DIRECTORY = Path(__file__).resolve().parent
+PROJECT_DIRECTORY = SCRIPT_DIRECTORY.parent
 
-# GETTING THE PATHS
-#############################################################################################
+# Keep these names and strings because other scripts already use them.
+script_dir = str(SCRIPT_DIRECTORY)
+pdftest_path = str(PROJECT_DIRECTORY / "data" / "scanned_bank_st_4.pdf")
+AI_data_folder = str(PROJECT_DIRECTORY / "AI_data")
+ocr_data = str(PROJECT_DIRECTORY / "ocr_data")
+ground_truth_path = str(PROJECT_DIRECTORY / "data" / "writtenPage.txt")
 
-# get the folder this script lives in
-script_dir = os.path.dirname(os.path.abspath(__file__))
+bundled_poppler = PROJECT_DIRECTORY / "poppler-26.07.0" / "Library" / "bin"
 
-# path to poppler binaries needed by pdf2image
-poppler_path = os.path.join(
-    script_dir, "..", "poppler-26.07.0", "Library", "bin"
+# Use the Poppler location saved on computer's settings, if provided.
+# Otherwise, use the copy inside the project if that folder exists.
+poppler_path = os.getenv("POPPLER_PATH") or (
+    str(bundled_poppler) if bundled_poppler.is_dir() else None
 )
 
-# get the path to the pdf file to be processed
-pdftest_path = os.path.join(
-    script_dir, "..", "data", "scanned_bank_st_4.pdf"
-)
+windows_tesseract = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 
-# pdftest_path = os.path.join(
-#     script_dir, "..", "data", "scanned_bank_st_2.pdf"
-# )
+# Check whether a custom Tesseract location is saved on computer's settings.
+tesseract_command = os.getenv("TESSERACT_CMD")
 
-# pdftest_path = os.path.join(
-#     script_dir, "..", "data", "scanned_bank_st_3.pdf"
-# )
+if tesseract_command:
+    # Tell pytesseract to use your custom location.
+    pytesseract.pytesseract.tesseract_cmd = tesseract_command
+elif windows_tesseract.is_file():
+    # If no custom location was given, use the usual Windows location if it exists.
+    pytesseract.pytesseract.tesseract_cmd = str(windows_tesseract)
 
-## path to the folder where the AI data is be stored
-AI_data_folder = os.path.join(
-    script_dir, "..", "AI_data"
-)
-#AI_data_folder_path = Path(r"C:\Users\yosse\Desktop\School_OneDrive\OneDrive - East Tennessee State University\Fall 2026\Dr.Roach_Independent_Study\AI_data")
-
-
-# ocr_data is the folder where the output will be saved
-ocr_data = os.path.join(script_dir, "..", "ocr_data")
-
-os.makedirs(ocr_data, exist_ok=True) # make sure the folder exists
-
-# ground truth path
-ground_truth_path = os.path.join(
-    script_dir, "..", "data", "writtenPage.txt"
-)
-
-#############################################################################################
+# If neither location is available, leave pytesseract's default setting unchanged.
