@@ -97,6 +97,7 @@ if (form) {
 
             // Display the generated report or Flask's HTML error page.
             const html = await response.text();
+            console.log(html);
 
             document.open();
             document.write(html);

@@ -2,14 +2,9 @@
 
 {% block content %}
 <div class="actions report-actions">
-    <button id="download-report" type="button">
-        Download report
-    </button>
-
     <button
         id="print-report"
         type="button"
-        class="secondary"
     >
         Save as PDF / Print
     </button>
@@ -53,7 +48,7 @@
 
     {% for finding in report.results %}
         <article class="card">
-            <div class="finding-heading">
+            <!-- <div class="finding-heading">
                 <h2>
                     {{ finding.id }} · {{ finding.rule }}
                 </h2>
@@ -61,6 +56,22 @@
                 <span class="badge {{ finding.status }}">
                     {{ finding.status | replace("_", " ") }}
                 </span>
+            </div> -->
+
+            <div class="finding-heading">
+                <h2>{{ finding.id }} · {{ finding.rule }}</h2>
+
+                <div class="finding-badges">
+                    {% if rule_percentages is defined and finding.id in rule_percentages %}
+                        <span class="rule-percentage">
+                            {{ "%g"|format(rule_percentages[finding.id]|round(1)) }}% weight
+                        </span>
+                    {% endif %}
+
+                    <span class="badge {{ finding.status }}">
+                        {{ finding.status|replace("_", " ") }}
+                    </span>
+                </div>
             </div>
 
             <h3>Evidence</h3>
@@ -121,62 +132,6 @@
             Metadata alone cannot establish authenticity.
         </p>
     </section>
-
-    {% if report.tool_results %}
-        <section class="card">
-            <h2>External evidence</h2>
-
-            {% for call in report.tool_results %}
-                <p>
-                    {{ call.tool }}:
-                    {{ call.result.status }}
-                </p>
-
-                {% if call.tool == "search_bank" and call.result.candidates %}
-                    <ul>
-                        {% for bank in call.result.candidates %}
-                            <li>
-                                {{ bank.name }} — {{ bank.address }}
-                                <small>{{ bank.data_source }}</small>
-                            </li>
-                        {% endfor %}
-                    </ul>
-
-                    <p>
-                        Powered by
-                        <a href="https://www.geoapify.com/">
-                            Geoapify
-                        </a>.
-                        Map data ©
-                        <a href="https://www.openstreetmap.org/copyright">
-                            OpenStreetMap contributors
-                        </a>.
-                    </p>
-
-                {% elif call.tool == "get_exchange_rate" and call.result.status == "READY" %}
-                    <p>
-                        1 USD = {{ call.result.units_per_usd }}
-                        {{ call.result.currency }}.
-                        Rate date: {{ call.result.rate_date }}.
-                    </p>
-
-                    {% if call.result.source %}
-                        <p>
-                            <a href="https://www.exchangerate-api.com">
-                                Rates By Exchange Rate API
-                            </a>
-                        </p>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-
-            <p>
-                Bank listings do not authenticate the statement.
-                Currency conversion and comparison are performed
-                by the AI.
-            </p>
-        </section>
-    {% endif %}
 </div>
 
 <script

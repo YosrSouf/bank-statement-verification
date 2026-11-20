@@ -1,17 +1,17 @@
 import os
 import secrets
 import sqlite3
-
+import traceback
 from decimal import Decimal, InvalidOperation
 from functools import wraps
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import click
-
 from flask import (
     Flask,
     abort,
+    current_app,
     flash,
     g,
     redirect,
@@ -20,16 +20,10 @@ from flask import (
     session,
     url_for,
 )
-
-from werkzeug.security import (
-    check_password_hash,
-    generate_password_hash,
-)
+from werkzeug.security import check_password_hash, generate_password_hash
 
 
-def create_app():
-    app = Flask(__name__, instance_relative_config=True)
-
+def configure_app(app):
     # Store the account database and session key outside static/templates.
     instance_folder = Path(app.instance_path)
     instance_folder.mkdir(exist_ok=True)
@@ -51,25 +45,52 @@ def create_app():
         SESSION_COOKIE_SAMESITE="Lax",
     )
 
-    # --------------------------------------------------
-    # Database connection
-    # --------------------------------------------------
 
-    def get_db():
-        if "db" not in g:
-            g.db = sqlite3.connect(app.config["DATABASE"])
-            g.db.row_factory = sqlite3.Row
+def get_db():
+    if "db" not in g:
+        g.db = sqlite3.connect(current_app.config["DATABASE"])
+        g.db.row_factory = sqlite3.Row
 
-        return g.db
+    return g.db
+
+
+def approved_required(admin_only=False):
+    def decorator(view):
+        @wraps(view)
+        def wrapped_view(*args, **kwargs):
+            if g.user is None:
+                return redirect(url_for("login"))
+
+            if g.user["status"] != "approved":
+                abort(403, "Your account has not been approved.")
+
+            if admin_only and not g.user["is_admin"]:
+                abort(403, "Administrator access is required.")
+
+            return view(*args, **kwargs)
+
+        return wrapped_view
+
+    return decorator
+
+
+def parse_required_amount(value):
+    amount = Decimal(value)
+    if not amount.is_finite() or not 0 < amount <= 10_000_000:
+        raise InvalidOperation
+    return amount
+
+
+def create_app():
+    app = Flask(__name__, instance_relative_config=True)
+    configure_app(app)
 
     @app.teardown_appcontext
     def close_db(error):
         connection = g.pop("db", None)
-
         if connection is not None:
             connection.close()
 
-    # Create the users table if it does not exist.
     with app.app_context():
         get_db().execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -81,38 +102,23 @@ def create_app():
                 is_admin INTEGER NOT NULL DEFAULT 0
             )
         """)
-
         get_db().commit()
-
-    # --------------------------------------------------
-    # Load the signed-in user and protect POST forms
-    # --------------------------------------------------
 
     @app.before_request
     def load_user():
         user_id = session.get("user_id")
-
         g.user = get_db().execute(
             "SELECT * FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
 
-        # CSRF tokens help prevent another website from submitting forms
-        # using the advisor's logged-in session.
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(32)
 
         if request.method == "POST":
             submitted_token = request.form.get("csrf", "")
-
-            if not secrets.compare_digest(
-                session["csrf"],
-                submitted_token,
-            ):
-                abort(
-                    400,
-                    "Your form expired. Reload the page and try again.",
-                )
+            if not secrets.compare_digest(session["csrf"], submitted_token):
+                abort(400, "Your form expired. Reload the page and try again.")
 
     @app.after_request
     def add_headers(response):
@@ -120,43 +126,11 @@ def create_app():
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-
         return response
-
-    # --------------------------------------------------
-    # Route permissions
-    # --------------------------------------------------
-
-    def approved_required(admin_only=False):
-        def decorator(view):
-            @wraps(view)
-            def wrapped_view(*args, **kwargs):
-                if g.user is None:
-                    return redirect(url_for("login"))
-
-                if g.user["status"] != "approved":
-                    abort(403, "Your account has not been approved.")
-
-                if admin_only and not g.user["is_admin"]:
-                    abort(403, "Administrator access is required.")
-
-                return view(*args, **kwargs)
-
-            return wrapped_view
-
-        return decorator
-
-    # --------------------------------------------------
-    # Home
-    # --------------------------------------------------
 
     @app.route("/")
     def home():
         return render_template("home.html")
-
-    # --------------------------------------------------
-    # Sign up
-    # --------------------------------------------------
 
     @app.route("/signup", methods=["GET", "POST"])
     def signup():
@@ -167,45 +141,30 @@ def create_app():
 
             if not name or len(name) > 100:
                 flash("Enter your name.")
-
             elif "@" not in email or len(email) > 254:
                 flash("Enter a valid email address.")
-
             elif not 12 <= len(password) <= 128:
                 flash("Use a password containing 12–128 characters.")
-
             else:
                 try:
-                    # New accounts are pending and never administrators.
+                    # New accounts start as pending staff accounts.
                     get_db().execute(
                         """
                         INSERT INTO users (name, email, password)
                         VALUES (?, ?, ?)
                         """,
-                        (
-                            name,
-                            email,
-                            generate_password_hash(password),
-                        ),
+                        (name, email, generate_password_hash(password)),
                     )
-
                     get_db().commit()
-
                     flash(
                         "Request received. An administrator must "
                         "approve your account before you can sign in."
                     )
-
                     return redirect(url_for("login"))
-
                 except sqlite3.IntegrityError:
                     flash("An account with this email already exists.")
 
         return render_template("auth.html", signup=True)
-
-    # --------------------------------------------------
-    # Log in
-    # --------------------------------------------------
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -219,43 +178,28 @@ def create_app():
             ).fetchone()
 
             if user is None or not check_password_hash(
-                user["password"],
-                password,
+                user["password"], password
             ):
                 flash("Email or password is incorrect.")
-
             elif user["status"] == "pending":
                 flash("Your account is pending administrator approval.")
-
             elif user["status"] != "approved":
                 flash(
                     "Your account request was declined. "
                     "Contact your administrator."
                 )
-
             else:
                 session.clear()
-
                 session["user_id"] = user["id"]
                 session["csrf"] = secrets.token_urlsafe(32)
-
                 return redirect(url_for("home"))
 
         return render_template("auth.html", signup=False)
 
-    # --------------------------------------------------
-    # Log out
-    # --------------------------------------------------
-
     @app.post("/logout")
     def logout():
         session.clear()
-
         return redirect(url_for("home"))
-
-    # --------------------------------------------------
-    # Administrator page
-    # --------------------------------------------------
 
     @app.route("/admin")
     @approved_required(admin_only=True)
@@ -267,10 +211,7 @@ def create_app():
             ORDER BY id
         """).fetchall()
 
-        return render_template(
-            "admin.html",
-            users=pending_users,
-        )
+        return render_template("admin.html", users=pending_users)
 
     @app.post("/admin/<int:user_id>/<action>")
     @approved_required(admin_only=True)
@@ -278,10 +219,7 @@ def create_app():
         if action not in ("approve", "decline"):
             abort(404)
 
-        new_status = (
-            "approved" if action == "approve" else "declined"
-        )
-
+        new_status = "approved" if action == "approve" else "declined"
         get_db().execute(
             """
             UPDATE users
@@ -292,16 +230,10 @@ def create_app():
             """,
             (new_status, user_id),
         )
-
         get_db().commit()
 
         flash("Account request updated.")
-
         return redirect(url_for("admin"))
-
-    # --------------------------------------------------
-    # Upload and generate a report
-    # --------------------------------------------------
 
     @app.route("/review", methods=["GET", "POST"])
     @approved_required()
@@ -311,19 +243,10 @@ def create_app():
 
         uploaded_file = request.files.get("statement")
 
-        # Validate the required funding amount.
         try:
-            required_amount = Decimal(
+            required_amount = parse_required_amount(
                 request.form.get("required_amount", "")
             )
-
-            if (
-                not required_amount.is_finite()
-                or required_amount <= 0
-                or required_amount > 10_000_000
-            ):
-                raise InvalidOperation
-
         except InvalidOperation:
             return render_template(
                 "review.html",
@@ -343,11 +266,8 @@ def create_app():
                 error="Select a PDF file.",
             ), 400
 
-        # Each upload gets its own temporary folder.
-        # The folder is deleted when this block finishes.
         with TemporaryDirectory(prefix="statement-") as folder:
             pdf_path = Path(folder) / "statement.pdf"
-
             uploaded_file.save(pdf_path)
 
             with pdf_path.open("rb") as file:
@@ -359,38 +279,47 @@ def create_app():
                     error="The uploaded file is not a valid PDF.",
                 ), 400
 
+            stage = "importing main.verify_statement"
             try:
                 from main import verify_statement
 
+                stage = "running main.verify_statement"
                 report = verify_statement(
                     pdf_path=pdf_path,
                     required_amount=str(required_amount),
                 )
-
             except Exception as error:
-                # Avoid logging statement text or private API responses.
+                reference = secrets.token_hex(6)
+
+                if getattr(error, "status_code", None) == 429:
+                    app.logger.warning(
+                        "OpenAI 429 [%s]: code=%s",
+                        reference,
+                        getattr(error, "code", None),
+                    )
+
+                # Log stack locations without recording statement or API data.
+                locations = "\n".join(
+                    f"  {frame.filename}:{frame.lineno} in {frame.name}"
+                    for frame in traceback.extract_tb(error.__traceback__)
+                )
                 app.logger.warning(
-                    "Analysis failed: %s",
+                    "Analysis failed [%s] while %s (%s)\n%s",
+                    reference,
+                    stage,
                     type(error).__name__,
+                    locations,
                 )
 
                 return render_template(
                     "review.html",
                     error=(
-                        "Analysis failed. Check your API configuration, "
-                        "PDF, and OCR dependencies, then try again. "
-                        "No report was generated."
+                        "The app could not generate a report. "
+                        f"Contact support with reference {reference}."
                     ),
                 ), 502
 
-        return render_template(
-            "report.html",
-            report=report,
-        )
-
-    # --------------------------------------------------
-    # Error pages
-    # --------------------------------------------------
+        return render_template("report.html", report=report)
 
     @app.errorhandler(413)
     def upload_too_large(error):
@@ -406,10 +335,6 @@ def create_app():
             "error.html",
             message=error.description,
         ), error.code
-
-    # --------------------------------------------------
-    # Create an administrator from the terminal
-    # --------------------------------------------------
 
     @app.cli.command("create-admin")
     @click.option("--name", prompt=True)
@@ -429,8 +354,7 @@ def create_app():
         try:
             get_db().execute(
                 """
-                INSERT INTO users
-                    (name, email, password, status, is_admin)
+                INSERT INTO users (name, email, password, status, is_admin)
                 VALUES (?, ?, ?, 'approved', 1)
                 """,
                 (
@@ -439,9 +363,7 @@ def create_app():
                     generate_password_hash(password),
                 ),
             )
-
             get_db().commit()
-
         except sqlite3.IntegrityError:
             raise click.ClickException(
                 "That email already exists. "

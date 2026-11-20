@@ -365,3 +365,18 @@ footer {
         break-inside: avoid;
     }
 }
+
+
+.finding-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+    margin-inline-start: auto;
+    flex-shrink: 0;
+}
+
+.rule-percentage {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
