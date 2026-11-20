@@ -454,29 +454,29 @@ def extract_annotations(pdf, analysis):
 # --------------------------------------------------
 # 6. Syntax
 # --------------------------------------------------
+def _count_pdf_markers(pdf_path):
+    with open(pdf_path, "rb") as file:
+        contents = file.read()
+    return contents.count(b"%%EOF"), contents.count(b"startxref")
+
 
 def extract_syntax(pdf, pdf_path, analysis):
-    # Read the original bytes because marker counts concern the saved file structure.
-    with open(pdf_path, "rb") as file:
-        raw_pdf = file.read()
-
-    eof_count = raw_pdf.count(b"%%EOF")
-
+    """Record PDF properties and raw marker counts, flagging repeated EOF markers."""
+    eof_count, startxref_count = _count_pdf_markers(pdf_path)
     analysis["syntax"] = {
         "pdf_version": str(pdf.pdf_version),
         "number_of_pages": len(pdf.pages),
         "encrypted": pdf.is_encrypted,
         "eof_marker_count": eof_count,
-        "startxref_count": raw_pdf.count(b"startxref")
+        "startxref_count": startxref_count,
     }
 
-    # Multiple markers may reflect appended updates, including legitimate changes.
-    # Raw byte counts alone do not confirm an editing history.
+    # Raw counts can include legitimate updates or matches inside streams.
     if eof_count > 1:
         analysis["flags"].append({
             "category": "syntax",
             "type": "multiple_eof_markers",
-            "evidence": f"{eof_count} %%EOF markers were found."
+            "evidence": f"{eof_count} %%EOF markers were found.",
         })
 
 

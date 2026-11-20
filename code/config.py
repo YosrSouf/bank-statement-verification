@@ -9,6 +9,7 @@ import pytesseract
 SCRIPT_DIRECTORY = Path(__file__).resolve().parent
 PROJECT_DIRECTORY = SCRIPT_DIRECTORY.parent
 
+
 # Keep these names and strings because other scripts already use them.
 script_dir = str(SCRIPT_DIRECTORY)
 pdftest_path = str(PROJECT_DIRECTORY / "data" / "scanned_bank_st_4.pdf")
