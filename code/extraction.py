@@ -1,8 +1,7 @@
-"""Original extraction workflow, compatible with the current main.py."""
+"""Extract bank statement fields from text or OCR and save them as JSON."""
 
 import json
 import re
-
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from config import AI_data_folder
 from ocr import extract_text_ordered, save_and_ocr
 
 
-# Support several date formats because statements use different writing styles.
+# Pattern order determines the order of matches within each cell.
 DATE_PATTERNS = (
     r"\b\d{1,2}/\d{1,2}/\d{4}\b",
     r"\b\d{1,2}/\d{1,2}/\d{2}\b",
@@ -28,7 +27,6 @@ DATE_PATTERNS = (
     r"\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\b",
 )
 
-# Different banks use different labels for the funds shown on a statement.
 BALANCE_KEYWORDS = (
     "ending balance",
     "current balance",
@@ -38,14 +36,14 @@ BALANCE_KEYWORDS = (
     "balance",
 )
 
-# Allow amounts with or without a currency symbol, commas, or decimal places.
 AMOUNT_PATTERN = r"[$€£]?\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?"
 
 
 def parse_transactions(text):
+    """Return transaction records for lines with at least two dates and two amounts."""
     transactions = []
 
-    # These patterns expect the transaction format used by the original sample.
+    # These patterns follow the original statement's transaction format.
     date_pattern = r"\d{2}-[A-Za-z]{3}-\d{4}"
     amount_pattern = r"[\d,]+\.\d{2}"
 
@@ -53,18 +51,17 @@ def parse_transactions(text):
         dates = re.findall(date_pattern, line)
         amounts = re.findall(amount_pattern, line)
 
-        # Require enough values to fill both date fields and both amount fields.
         if len(dates) >= 2 and len(amounts) >= 2:
             remarks = line
 
-            # Remove dates and amounts to leave the transaction description.
+            # Remove every matched date and amount, including extra matches.
             for matched_date in dates:
                 remarks = remarks.replace(matched_date, "")
 
             for matched_amount in amounts:
                 remarks = remarks.replace(matched_amount, "")
 
-            # Assume the matched values follow the sample's column order.
+            # The first two matches follow the original statement's column order.
             transactions.append(
                 {
                     "trans_date": dates[0],
@@ -79,56 +76,48 @@ def parse_transactions(text):
 
 
 def extract_dates(table_rows):
-    """Find date matches in individual cells."""
-
+    """Return date matches from table_rows in row, cell, and pattern order."""
     dates = []
 
     for row in table_rows:
         for cell in row:
             for pattern in DATE_PATTERNS:
-                # Ignore capitalization so month names such as JAN and Jan both match.
-                matches = re.findall(
-                    pattern,
-                    cell,
-                    re.IGNORECASE,
-                )
+                matches = re.findall(pattern, cell, re.IGNORECASE)
                 dates.extend(matches)
 
     return dates
 
 
 def extract_balances(table_rows):
-    """Find amounts in rows containing balance labels."""
-
+    """Return one balance record per matching keyword in each table row."""
     balances = []
 
     for row in table_rows:
-        # Join cells so labels such as "closing balance" can match across words.
+        # Join cells so a label can span more than one cell.
         row_text = " ".join(row)
+        lowercase_row = row_text.lower()
+        matching_keywords = [
+            keyword for keyword in BALANCE_KEYWORDS if keyword in lowercase_row
+        ]
+        if not matching_keywords:
+            continue
 
-        for keyword in BALANCE_KEYWORDS:
-            if keyword in row_text.lower():
-                amounts = re.findall(
-                    AMOUNT_PATTERN,
-                    row_text,
-                )
-
-                # Keep the full row so the amounts can be reviewed in context.
-                balances.append(
-                    {
-                        "keyword": keyword,
-                        "row_text": row_text,
-                        "amounts": amounts,
-                    }
-                )
+        # Keep overlapping labels and give each record its own amount list.
+        amounts = re.findall(AMOUNT_PATTERN, row_text)
+        for keyword in matching_keywords:
+            balances.append(
+                {
+                    "keyword": keyword,
+                    "row_text": row_text,
+                    "amounts": amounts.copy(),
+                }
+            )
 
     return balances
 
 
 def extract_periods(text):
-    """Find explicitly labeled statement periods."""
-
-    # A labeled period provides context that individual transaction dates may lack.
+    """Return labeled statement periods in the order they appear in text."""
     return [
         {"period": value.strip()}
         for value in re.findall(
@@ -139,65 +128,14 @@ def extract_periods(text):
     ]
 
 
-def extract_fields(
-    text,
-    table_rows,
-    *,
-    today=None,
-    required_amount=44416,
-):
-    """Collect extracted fields without saving files."""
+def extract_fields(text, table_rows, *, today=None, required_amount=44416):
+    """Build JSON payloads, using today's date by default and recording the required amount."""
+    account_details = _extract_account_details(text)
+    account_classification = _extract_account_classification(text)
 
-    # Allow labels without a colon or a fixed position on the line.
-    bank_match = re.search(
-        r"(?i)\b(?:financial institution|bank|branch|bank of)"
-        r"\s*:?\s*([^\r\n]+)",
-        text,
-    )
-
-    # Accept several address labels because statement layouts vary.
-    address_match = re.search(
-        r"(?i)\b(?:bank\s+address|branch\s+address|address)"
-        r"\b\s*:?\s*([^\r\n]+)",
-        text,
-    )
-
-    # Use the currency label rather than guessing from symbols or bank location.
-    currency_match = re.search(
-        r"(?im)\bcurrency\s*:?\s*([^\r\n]+)",
-        text,
-    )
-
-    # Preserve the stated account type as evidence for later review.
-    account_match = re.search(
-        r"(?i)\baccount\s+type\b\s*:?\s*([^\r\n]+)",
-        text,
-    )
-
-    # Collect clues separately because keywords alone do not prove account ownership.
-    personal_matches = re.findall(
-        r"(?i)\b(personal|individual|checking|savings)\b",
-        text,
-    )
-
-    business_matches = re.findall(
-        r"(?i)\b(business|company|corporation|llc|inc\.?)\b",
-        text,
-    )
-
-    # Keep a separate branch field because main.py expects it.
-    branch_match = re.search(
-        r"(?im)^\s*branch(?:\s+name)?\s*:\s*([^\r\n]+)",
-        text,
-    )
-
-    # Group results by output filename for the later saving step.
     return {
         "dates.json": {
-            # Allow a supplied date for repeatable checks; otherwise use today's date.
-            "today's date": str(
-                today if today is not None else date.today()
-            ),
+            "today's date": str(today if today is not None else date.today()),
             "dates": extract_dates(table_rows),
             "statement_periods": extract_periods(text),
         },
@@ -205,51 +143,73 @@ def extract_fields(
             "balances": extract_balances(table_rows),
             "required_amount_USD": required_amount,
         },
-        "account_details.json": {
-            # Mark missing matches as UNCLEAR instead of inventing field values.
-            "bank_name_clues": (
-                bank_match.group(1).strip()
-                if bank_match
-                else "UNCLEAR"
-            ),
-            "bank_address_clues": (
-                address_match.group(1).strip()
-                if address_match
-                else "UNCLEAR"
-            ),
-            "currency": (
-                currency_match.group(1).strip()
-                if currency_match
-                else "UNCLEAR"
-            ),
-            "branch_name": (
-                branch_match.group(1).strip()
-                if branch_match
-                else "UNCLEAR"
-            ),
-            # A generic "address" label could refer to the account holder.
-            # Check whether the label explicitly identifies a bank or branch address.
-            "bank_address_label_confirmed": bool(
-                address_match
-                and re.match(
-                    r"(?i)(?:bank|branch)\s+address\b",
-                    address_match.group(0).lstrip(),
-                )
-            ),
-        },
-        "account_classification.json": {
-            "account_type_clues": (
-                account_match.group(1)
-                if account_match
-                else "UNCLEAR"
-            ),
-            "personal_clues": (
-                personal_matches or ["UNCLEAR"]
-            ),
-            "business_clues": (
-                business_matches or ["UNCLEAR"]
-            ),
-        },
+        "account_details.json": account_details,
+        "account_classification.json": account_classification,
+    }
+
+
+def _matched_value(match):
+    """Return the stripped first capture or UNCLEAR when the label was absent."""
+    return match.group(1).strip() if match else "UNCLEAR"
+
+
+def _extract_account_details(text):
+    """Return bank, address, currency, and branch clues from statement text."""
+    bank_match = re.search(
+        r"(?i)\b(?:financial institution|bank|branch|bank of)"
+        r"\s*:?\s*([^\r\n]+)",
+        text,
+    )
+    address_match = re.search(
+        r"(?i)\b(?:bank\s+address|branch\s+address|address)"
+        r"\b\s*:?\s*([^\r\n]+)",
+        text,
+    )
+    currency_match = re.search(
+        r"(?im)\bcurrency\s*:?\s*([^\r\n]+)",
+        text,
+    )
+    branch_match = re.search(
+        r"(?im)^\s*branch(?:\s+name)?\s*:\s*([^\r\n]+)",
+        text,
+    )
+
+    return {
+        "bank_name_clues": _matched_value(bank_match),
+        "bank_address_clues": _matched_value(address_match),
+        "currency": _matched_value(currency_match),
+        "branch_name": _matched_value(branch_match),
+        # A generic address label could refer to the account holder.
+        "bank_address_label_confirmed": bool(
+            address_match
+            and re.match(
+                r"(?i)(?:bank|branch)\s+address\b",
+                address_match.group(0).lstrip(),
+            )
+        ),
+    }
+
+
+def _extract_account_classification(text):
+    """Return the stated account type and personal or business clues from text."""
+    account_match = re.search(
+        r"(?i)\baccount\s+type\b\s*:?\s*([^\r\n]+)",
+        text,
+    )
+    personal_matches = re.findall(
+        r"(?i)\b(personal|individual|checking|savings)\b",
+        text,
+    )
+    business_matches = re.findall(
+        r"(?i)\b(business|company|corporation|llc|inc\.?)\b",
+        text,
+    )
+
+    # The account-type capture retains trailing whitespace in the JSON output.
+    return {
+        "account_type_clues": account_match.group(1) if account_match else "UNCLEAR",
+        "personal_clues": personal_matches or ["UNCLEAR"],
+        "business_clues": business_matches or ["UNCLEAR"],
     }
 
 
@@ -260,65 +220,32 @@ def extract_statement(
     required_amount=44416,
     benchmark=True,
 ):
-    """Extract statement text, rows, and fields."""
+    """Return text, rows, and fields from supplied text or a preprocessed image.
 
-    # Run OCR only when extracted text has not already been supplied.
+    On image input, benchmark selects the OCR text route. The required amount
+    is included in the balance payload.
+    """
+    # Supplied text takes precedence, including an empty string.
     if text is None:
         if inverted_gray_no_noise_page is None:
-            raise ValueError(
-                "Provide text or a preprocessed page image."
-            )
+            raise ValueError("Provide text or a preprocessed page image.")
 
-        # Request word and line information so OCR words can be grouped into rows.
-        # PSM 6 tells Tesseract to treat the image as one block of text.
-        data = pytesseract.image_to_data(
-            inverted_gray_no_noise_page,
-            output_type=pytesseract.Output.DICT,
-            config="--psm 6",
-        )
+        table_rows = _extract_ocr_rows(inverted_gray_no_noise_page)
 
-        rows = {}
-
-        for index in range(len(data["text"])):
-            word = data["text"][index].strip()
-
-            # Ignore empty OCR entries so rows contain only recognized text.
-            if word:
-                # Include block and paragraph numbers because line numbers can repeat.
-                row_id = (
-                    data["block_num"][index],
-                    data["par_num"][index],
-                    data["line_num"][index],
-                )
-
-                if row_id not in rows:
-                    rows[row_id] = []
-
-                rows[row_id].append(word)
-
-        table_rows = list(rows.values())
-
-        # Keep the original OCR route as the default for existing callers.
         if benchmark:
             text = save_and_ocr(
                 "inverted_gray_no_noise",
                 inverted_gray_no_noise_page,
             )
         else:
-            text = extract_text_ordered(
-                inverted_gray_no_noise_page,
-                10,
-            )
-
+            text = extract_text_ordered(inverted_gray_no_noise_page, 10)
     else:
-        # Give existing text the same row structure used by the OCR route.
         table_rows = [
             line.split()
             for line in text.split("\n")
             if line.strip()
         ]
 
-    # Keep text and rows alongside the fields so extraction results can be inspected.
     return {
         "text": text,
         "table_rows": table_rows,
@@ -330,47 +257,51 @@ def extract_statement(
     }
 
 
-def save_extracted_data(json_files, output_directory):
-    """Write the extracted dictionaries to their JSON files."""
+def _extract_ocr_rows(page):
+    """Return nonempty OCR words grouped into rows in first-seen order."""
+    # PSM 6 tells Tesseract to treat the page as a single block of text.
+    data = pytesseract.image_to_data(
+        page, output_type=pytesseract.Output.DICT, config="--psm 6"
+    )
+    rows = {}
 
-    # Create missing folders so saving also works on the first run.
+    for index, raw_word in enumerate(data["text"]):
+        word = raw_word.strip()
+        if not word:
+            continue
+
+        # Line numbers can repeat across blocks and paragraphs.
+        row_id = (
+            data["block_num"][index],
+            data["par_num"][index],
+            data["line_num"][index],
+        )
+        rows.setdefault(row_id, []).append(word)
+
+    return list(rows.values())
+
+
+def save_extracted_data(json_files, output_directory):
+    """Write each filename and payload in json_files under output_directory."""
     directory = Path(output_directory)
     directory.mkdir(parents=True, exist_ok=True)
 
     for filename, data in json_files.items():
         filepath = directory / filename
-
-        with filepath.open(
-            "w",
-            encoding="utf-8",
-        ) as file:
-            # Make the JSON readable and preserve characters such as currency symbols.
-            json.dump(
-                data,
-                file,
-                indent=4,
-                ensure_ascii=False,
-            )
+        with filepath.open("w", encoding="utf-8") as file:
+            # Preserve characters such as currency symbols in the JSON.
+            json.dump(data, file, indent=4, ensure_ascii=False)
 
 
 def extract_data(inverted_gray_no_noise_page=None, text=None):
-    """Keep the existing combined extraction and saving function."""
-
-    # Let existing callers extract and save through a single function.
+    """Extract the supplied image or text, print balances, and save the fields."""
     statement = extract_statement(
         inverted_gray_no_noise_page,
         text,
         benchmark=True,
     )
 
-    # Show matched rows and amounts for a quick check of the extraction results.
     for balance in statement["fields"]["balances.json"]["balances"]:
-        print(
-            balance["row_text"],
-            balance["amounts"],
-        )
+        print(balance["row_text"], balance["amounts"])
 
-    save_extracted_data(
-        statement["fields"],
-        AI_data_folder,
-    )
+    save_extracted_data(statement["fields"], AI_data_folder)
